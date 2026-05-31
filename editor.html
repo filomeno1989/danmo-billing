@@ -338,6 +338,7 @@ let tipoCliente  = 'interno';
 let descontoTipo = 'fixo'; // 'fixo' ou 'pct'
 let itens    = [];
 let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [];
+let configCache = {}; // tarifas e configurações gerais
 
 // Unidades disponíveis
 const UNIDADES = ['horas','hora','dias','Und','Litro','Kg','Metro','Par','Caixa','Rolo','Tonelada','m²','ml'];
@@ -354,25 +355,30 @@ buildNav();
 iniciar();
 
 async function iniciar() {
-  [clientes, tecnicos, utilizadores, todosDocumentos] = await Promise.all([
+  const [clientes_r, tecnicos_r, utilizadores_r, documentos_r, configs_r] = await Promise.all([
     db.get('clientes'),
     db.get('tecnicos'),
     db.get('utilizadores'),
-    db.get('documentos')
+    db.get('documentos'),
+    db.get('configuracoes')
   ]);
+  clientes = clientes_r;
+  tecnicos = tecnicos_r;
+  utilizadores = utilizadores_r;
+  todosDocumentos = documentos_r;
+
+  // Guardar configurações em cache (chave -> valor)
+  configs_r.forEach(c => { configCache[c.chave] = c.valor; });
+
+  // Taxa de câmbio padrão das configurações
+  if (configCache['taxa_cambio']) {
+    document.getElementById('taxa-cambio').value = configCache['taxa_cambio'];
+  }
 
   popularClientesSelect();
   popularUtilizadoresSelect();
   document.getElementById('doc-data').value = hoje();
 
-  // Carregar taxa de câmbio padrão das configurações
-  try {
-    const cfgs = await db.get('configuracoes');
-    const taxaCfg = cfgs.find(c => c.chave === 'taxa_cambio');
-    if (taxaCfg?.valor) {
-      document.getElementById('taxa-cambio').value = taxaCfg.valor;
-    }
-  } catch(e) {}
 
   const params = new URLSearchParams(window.location.search);
   const editId = params.get('id');
@@ -519,6 +525,13 @@ function setTipoCliente(t, btn) {
   tipoCliente = t;
   activarBtn(btn);
   actualizarInfoTipoCliente();
+  // Actualizar tarifas de todos os itens de mão-de-obra já adicionados
+  itens.forEach(item => {
+    const isMaoItem = item.item_tipo === 'mao' || (docServ === 'mao');
+    if (isMaoItem && item.tecnico_id) {
+      autoTarifa(item._id);
+    }
+  });
 }
 
 function actualizarInfoTipoCliente() {
@@ -718,29 +731,21 @@ function tecSelect(lid, val) {
     <option value="">— Técnico —</option>${opts}</select>`;
 }
 
-async function autoTarifa(lid) {
+function autoTarifa(lid) {
   const item = itens.find(i => i._id === lid);
   if (!item?.tecnico_id) return;
 
-  // Tentar usar tarifa das configurações por tipo de cliente
-  try {
-    const chave_mzn = `tarifa_${tipoCliente}_mzn`;
-    const chave_usd = `tarifa_${tipoCliente}_usd`;
-    const cfgs = await db.get('configuracoes');
-    const cfgMZN = cfgs.find(c => c.chave === chave_mzn);
-    const cfgUSD = cfgs.find(c => c.chave === chave_usd);
+  // Usar tarifa das configurações por tipo de cliente
+  const chave = docMoeda === 'USD'
+    ? `tarifa_${tipoCliente}_usd`
+    : `tarifa_${tipoCliente}_mzn`;
 
-    if (docMoeda === 'USD' && cfgUSD?.valor) {
-      item.valor_unit = parseFloat(cfgUSD.valor) || 0;
-    } else if (cfgMZN?.valor) {
-      item.valor_unit = parseFloat(cfgMZN.valor) || 0;
-    } else {
-      // Fallback para tarifa do técnico
-      const tec = tecnicos.find(t => t.id === item.tecnico_id);
-      item.valor_unit = docMoeda === 'USD' ? (tec?.tarifa_usd||0) : (tec?.tarifa_mzn||0);
-    }
-  } catch(err) {
-    // Fallback para tarifa do técnico se configurações falharem
+  const tarifaCfg = configCache[chave];
+
+  if (tarifaCfg) {
+    item.valor_unit = parseFloat(tarifaCfg) || 0;
+  } else {
+    // Fallback para tarifa do técnico se configurações não carregaram
     const tec = tecnicos.find(t => t.id === item.tecnico_id);
     item.valor_unit = docMoeda === 'USD' ? (tec?.tarifa_usd||0) : (tec?.tarifa_mzn||0);
   }
