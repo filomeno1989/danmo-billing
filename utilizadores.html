@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Danmo SS — Utilizadores</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <a href="dashboard.html" class="logo">
+    <div class="logo-icon">DS</div>
+    <div><div class="logo-text">Danmo SS</div><div class="logo-sub">Cotações &amp; Faturas</div></div>
+  </a>
+  <nav class="header-nav" id="main-nav"></nav>
+  <div class="user-info">
+    <div><div class="user-name" id="user-nome"></div><div class="user-nivel" id="user-nivel-badge"></div></div>
+    <button class="btn-logout" onclick="auth.logout()">Sair</button>
+  </div>
+</header>
+
+<div class="modal-overlay" id="modal-utilizador">
+  <div class="modal modal-md">
+    <div class="modal-title" id="modal-titulo">👤 Novo Utilizador</div>
+    <input type="hidden" id="util-id">
+    <div class="grid-2">
+      <div class="form-row"><label>Nome Completo *</label><input type="text" id="util-nome" placeholder="Nome completo"></div>
+      <div class="form-row"><label>Cargo</label><input type="text" id="util-cargo" placeholder="ex: Assistente Administrativo"></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-row"><label>Email *</label><input type="email" id="util-email" placeholder="email@danmo.com"></div>
+      <div class="form-row">
+        <label>Nível de Acesso</label>
+        <select id="util-nivel">
+          <option value="operador">Operador — só visualiza</option>
+          <option value="gestor">Gestor — cria e edita documentos</option>
+          <option value="admin">Admin — acesso total</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-row">
+        <label id="senha-label">Senha *</label>
+        <input type="password" id="util-senha" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="form-row">
+        <label>Estado</label>
+        <select id="util-ativo">
+          <option value="true">Activo</option>
+          <option value="false">Inactivo</option>
+        </select>
+      </div>
+    </div>
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--steel);margin-bottom:1rem;">
+      ⚠️ A senha é guardada em texto simples. Não uses senhas pessoais importantes.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="fecharModal('modal-utilizador')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardar()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal modal-sm">
+    <div class="modal-title">⚠️ Confirmar</div>
+    <p id="confirm-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="fecharModal('modal-confirm')">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:10px;">
+    <h1 class="page-title" style="margin:0;">👤 <span>Utilizadores</span></h1>
+    <button class="btn btn-primary" onclick="abrirNovo()">➕ Novo Utilizador</button>
+  </div>
+
+  <!-- INFO NÍVEIS -->
+  <div class="grid-3" style="margin-bottom:1.5rem;">
+    <div class="card" style="border-left:3px solid var(--amber);padding:1rem;">
+      <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:var(--amber);">Admin</div>
+      <div style="font-size:12px;color:var(--steel);margin-top:4px;">Acesso total — dashboard, editor, clientes, técnicos, utilizadores</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--info);padding:1rem;">
+      <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:var(--info);">Gestor</div>
+      <div style="font-size:12px;color:var(--steel);margin-top:4px;">Dashboard, criar/editar documentos, ver clientes</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--success);padding:1rem;">
+      <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:2px;color:var(--success);">Operador</div>
+      <div style="font-size:12px;color:var(--steel);margin-top:4px;">Só visualiza o dashboard e documentos existentes</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="tabela-wrap"><div class="loading"><span class="spinner"></span> A carregar...</div></div>
+  </div>
+</div>
+
+<script src="supabase.js"></script><script src="auth.js"></script><script src="utils.js"></script>
+<script>
+const user = auth.require();
+let lista = [];
+
+if (!auth.isAdmin()) window.location.href = 'dashboard.html';
+document.getElementById('user-nome').textContent = user.nome;
+const nb = document.getElementById('user-nivel-badge');
+nb.textContent = user.nivel.charAt(0).toUpperCase() + user.nivel.slice(1);
+nb.className = `user-nivel nivel-${user.nivel}`;
+
+buildNav(); carregar();
+
+function buildNav() {
+  const nav = document.getElementById('main-nav');
+  [{label:'📋 Dashboard',href:'dashboard.html'},{label:'➕ Novo',href:'editor.html'},{label:'🏢 Clientes',href:'clientes.html'},{label:'👷 Técnicos',href:'tecnicos.html'},{label:'👤 Utilizadores',href:'utilizadores.html'}]
+  .forEach(item => {
+    const a = document.createElement('a');
+    a.href = item.href; a.textContent = item.label;
+    a.className = 'nav-btn' + (item.href==='utilizadores.html'?' active':'');
+    nav.appendChild(a);
+  });
+}
+
+async function carregar() {
+  try {
+    lista = await db.get('utilizadores');
+    lista.sort((a,b) => a.nome.localeCompare(b.nome));
+    render();
+  } catch(err) {
+    document.getElementById('tabela-wrap').innerHTML = `<div class="empty-state"><span class="empty-icon">⚠️</span>Erro ao carregar.</div>`;
+  }
+}
+
+const nivelCores = { admin:'nivel-admin', gestor:'nivel-gestor', operador:'nivel-operador' };
+const nivelLabel = { admin:'Admin', gestor:'Gestor', operador:'Operador' };
+
+function render() {
+  const wrap = document.getElementById('tabela-wrap');
+  if (!lista.length) {
+    wrap.innerHTML = `<div class="empty-state"><span class="empty-icon">👤</span>Nenhum utilizador.</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:var(--steel2);margin-bottom:10px;">${lista.length} utilizador(es)</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Nome</th><th>Cargo</th><th>Email</th><th>Nível</th><th>Estado</th><th style="width:100px;">Ações</th></tr></thead>
+      <tbody>${lista.map(u=>`<tr>
+        <td><strong>${u.nome}</strong>${u.id===user.id?' <span style="font-size:10px;color:var(--amber);">(você)</span>':''}</td>
+        <td style="color:var(--steel);font-size:13px;">${u.cargo||'—'}</td>
+        <td style="font-size:13px;">${u.email}</td>
+        <td><span class="badge ${nivelCores[u.nivel]||''}" style="font-size:10px;">${nivelLabel[u.nivel]||u.nivel}</span></td>
+        <td><span style="font-size:12px;color:${u.ativo?'var(--success)':'var(--danger)'};">${u.ativo?'● Activo':'● Inactivo'}</span></td>
+        <td><div style="display:flex;gap:4px;">
+          <button class="btn btn-outline btn-xs" onclick="abrirEditar('${u.id}')">✏️</button>
+          ${u.id!==user.id?`<button class="btn btn-danger btn-xs" onclick="eliminar('${u.id}','${u.nome.replace(/'/g,"\\'")}')">🗑️</button>`:''}
+        </div></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+function abrirNovo() {
+  document.getElementById('modal-titulo').textContent = '👤 Novo Utilizador';
+  document.getElementById('senha-label').textContent  = 'Senha *';
+  ['util-id','util-nome','util-cargo','util-email','util-senha'].forEach(id=>setVal(id,''));
+  setVal('util-nivel','gestor'); setVal('util-ativo','true');
+  abrirModal('modal-utilizador');
+}
+
+function abrirEditar(id) {
+  const u = lista.find(x=>x.id===id); if(!u) return;
+  document.getElementById('modal-titulo').textContent = '✏️ Editar Utilizador';
+  document.getElementById('senha-label').textContent  = 'Nova Senha (deixar em branco para manter)';
+  setVal('util-id',u.id); setVal('util-nome',u.nome||''); setVal('util-cargo',u.cargo||'');
+  setVal('util-email',u.email||''); setVal('util-nivel',u.nivel||'gestor');
+  setVal('util-ativo', u.ativo?'true':'false'); setVal('util-senha','');
+  abrirModal('modal-utilizador');
+}
+
+async function guardar() {
+  const nome  = getVal('util-nome').trim();
+  const email = getVal('util-email').trim();
+  const senha = getVal('util-senha').trim();
+  const id    = getVal('util-id');
+  if (!nome)  { showToast('Nome obrigatório.','error'); return; }
+  if (!email) { showToast('Email obrigatório.','error'); return; }
+  if (!id && !senha) { showToast('Senha obrigatória para novo utilizador.','error'); return; }
+  if (senha && senha.length < 6) { showToast('Senha deve ter mínimo 6 caracteres.','error'); return; }
+
+  const dados = {
+    nome, cargo:getVal('util-cargo'), email,
+    nivel:getVal('util-nivel'), ativo:getVal('util-ativo')==='true'
+  };
+  if (senha) dados.senha = senha;
+
+  try {
+    if (id) {
+      await db.update('utilizadores',id,dados);
+      const idx = lista.findIndex(u=>u.id===id);
+      if(idx>=0) lista[idx]={...lista[idx],...dados};
+      showToast('Utilizador actualizado!');
+    } else {
+      const res = await db.insert('utilizadores',dados);
+      lista.push(res[0]); lista.sort((a,b)=>a.nome.localeCompare(b.nome));
+      showToast('Utilizador criado!');
+    }
+    fecharModal('modal-utilizador'); render();
+  } catch(err) { showToast('Erro ao guardar.','error'); console.error(err); }
+}
+
+function eliminar(id, nome) {
+  if (id===user.id) { showToast('Não podes eliminar a tua própria conta.','error'); return; }
+  confirmar(`Eliminar utilizador "${nome}"?`, async () => {
+    try {
+      await db.delete('utilizadores',id);
+      lista = lista.filter(u=>u.id!==id); render();
+      showToast('Utilizador eliminado.');
+    } catch(err) { showToast('Erro ao eliminar.','error'); }
+  });
+}
+
+window.addEventListener('click', e => { if(e.target.classList.contains('modal-overlay')) e.target.classList.remove('open'); });
+</script>
+</body>
+</html>
