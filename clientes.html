@@ -16,7 +16,7 @@
   <nav class="header-nav" id="main-nav"></nav>
   <div class="user-info">
     <div><div class="user-name" id="user-nome"></div><div class="user-nivel" id="user-nivel-badge"></div></div>
-    <button class="btn-logout" onclick="auth.logout()">Sair</button>
+    <button id="btn-tema-header" onclick="togglePainelTemas()" style="background:transparent;border:1px solid var(--border);color:var(--steel);padding:6px 10px;border-radius:5px;cursor:pointer;font-size:14px;margin-right:6px;transition:all 0.2s;" title="Aparência" onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--steel)'">🎨</button><button class="btn-logout" onclick="auth.logout()">Sair</button>
   </div>
 </header>
 
@@ -61,6 +61,7 @@
   </div>
 </div>
 
+<script src="tema.js"></script>
 <script src="supabase.js"></script><script src="auth.js"></script><script src="utils.js"></script>
 <script>
 const user = auth.require();
