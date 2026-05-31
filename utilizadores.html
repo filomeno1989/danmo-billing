@@ -29,7 +29,7 @@
       <div class="form-row"><label>Cargo</label><input type="text" id="util-cargo" placeholder="ex: Assistente Administrativo"></div>
     </div>
     <div class="grid-2">
-      <div class="form-row"><label>Email *</label><input type="email" id="util-email" placeholder="email@danmo.com"></div>
+      <div class="form-row"><label>Código de Colaborador *</label><input type="text" id="util-usuario" placeholder="ex: DM0069" style="text-transform:uppercase;letter-spacing:2px;" oninput="this.value=this.value.toUpperCase()"></div>
       <div class="form-row">
         <label>Nível de Acesso</label>
         <select id="util-nivel">
@@ -147,11 +147,11 @@ function render() {
   wrap.innerHTML = `
     <div style="font-size:12px;color:var(--steel2);margin-bottom:10px;">${lista.length} utilizador(es)</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Nome</th><th>Cargo</th><th>Email</th><th>Nível</th><th>Estado</th><th style="width:100px;">Ações</th></tr></thead>
+      <thead><tr><th>Nome</th><th>Cargo</th><th>Código</th><th>Nível</th><th>Estado</th><th style="width:100px;">Ações</th></tr></thead>
       <tbody>${lista.map(u=>`<tr>
         <td><strong>${u.nome}</strong>${u.id===user.id?' <span style="font-size:10px;color:var(--amber);">(você)</span>':''}</td>
         <td style="color:var(--steel);font-size:13px;">${u.cargo||'—'}</td>
-        <td style="font-size:13px;">${u.email}</td>
+        <td style="font-family:'Courier Prime';letter-spacing:1px;font-size:13px;">${u.usuario||'—'}</td>
         <td><span class="badge ${nivelCores[u.nivel]||''}" style="font-size:10px;">${nivelLabel[u.nivel]||u.nivel}</span></td>
         <td><span style="font-size:12px;color:${u.ativo?'var(--success)':'var(--danger)'};">${u.ativo?'● Activo':'● Inactivo'}</span></td>
         <td><div style="display:flex;gap:4px;">
@@ -165,7 +165,7 @@ function render() {
 function abrirNovo() {
   document.getElementById('modal-titulo').textContent = '👤 Novo Utilizador';
   document.getElementById('senha-label').textContent  = 'Senha *';
-  ['util-id','util-nome','util-cargo','util-email','util-senha'].forEach(id=>setVal(id,''));
+  ['util-id','util-nome','util-cargo','util-usuario','util-senha'].forEach(id=>setVal(id,''));
   setVal('util-nivel','gestor'); setVal('util-ativo','true');
   abrirModal('modal-utilizador');
 }
@@ -175,23 +175,23 @@ function abrirEditar(id) {
   document.getElementById('modal-titulo').textContent = '✏️ Editar Utilizador';
   document.getElementById('senha-label').textContent  = 'Nova Senha (deixar em branco para manter)';
   setVal('util-id',u.id); setVal('util-nome',u.nome||''); setVal('util-cargo',u.cargo||'');
-  setVal('util-email',u.email||''); setVal('util-nivel',u.nivel||'gestor');
+  setVal('util-usuario',u.usuario||''); setVal('util-nivel',u.nivel||'gestor');
   setVal('util-ativo', u.ativo?'true':'false'); setVal('util-senha','');
   abrirModal('modal-utilizador');
 }
 
 async function guardar() {
-  const nome  = getVal('util-nome').trim();
-  const email = getVal('util-email').trim();
-  const senha = getVal('util-senha').trim();
-  const id    = getVal('util-id');
-  if (!nome)  { showToast('Nome obrigatório.','error'); return; }
-  if (!email) { showToast('Email obrigatório.','error'); return; }
+  const nome    = getVal('util-nome').trim();
+  const usuario = getVal('util-usuario').trim().toUpperCase();
+  const senha   = getVal('util-senha').trim();
+  const id      = getVal('util-id');
+  if (!nome)    { showToast('Nome obrigatório.','error'); return; }
+  if (!usuario) { showToast('Código de colaborador obrigatório.','error'); return; }
   if (!id && !senha) { showToast('Senha obrigatória para novo utilizador.','error'); return; }
   if (senha && senha.length < 6) { showToast('Senha deve ter mínimo 6 caracteres.','error'); return; }
 
   const dados = {
-    nome, cargo:getVal('util-cargo'), email,
+    nome, cargo:getVal('util-cargo'), usuario,
     nivel:getVal('util-nivel'), ativo:getVal('util-ativo')==='true'
   };
   if (senha) dados.senha = senha;

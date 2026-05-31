@@ -5,40 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Danmo SS — Login</title>
 <link rel="stylesheet" href="style.css">
+<script src="tema.js"></script>
 <style>
   body {
     display:flex; align-items:center; justify-content:center;
     min-height:100vh; padding:1rem;
   }
+  .login-wrap {
+    width:100%; max-width:420px;
+  }
   .login-box {
     background:var(--card); border:1px solid var(--border);
-    border-radius:12px; padding:2.5rem; width:100%; max-width:420px;
+    border-radius:12px; padding:2.5rem;
     backdrop-filter:blur(10px);
     box-shadow:0 25px 60px rgba(0,0,0,0.5);
   }
-  .login-logo {
+  .login-logo-wrap {
     text-align:center; margin-bottom:2rem;
   }
-  .login-logo-icon {
-    width:56px; height:56px; background:var(--amber);
-    display:inline-flex; align-items:center; justify-content:center;
-    font-family:'Bebas Neue'; font-size:26px; color:var(--navy);
-    clip-path: polygon(10% 0%,90% 0%,100% 10%,100% 90%,90% 100%,10% 100%,0% 90%,0% 10%);
-    margin-bottom:12px;
+  .login-logo-img {
+    height:72px; width:auto; object-fit:contain;
+    margin-bottom:12px; display:block; margin-left:auto; margin-right:auto;
   }
   .login-titulo {
-    font-family:'Bebas Neue'; font-size:28px; letter-spacing:3px; color:var(--white);
+    font-family:'Bebas Neue'; font-size:26px;
+    letter-spacing:3px; color:var(--white);
   }
   .login-sub {
-    font-size:12px; color:var(--steel); letter-spacing:1px; text-transform:uppercase;
-    margin-top:4px;
+    font-size:11px; color:var(--steel);
+    letter-spacing:1px; text-transform:uppercase; margin-top:4px;
   }
   .login-divider {
     height:1px; background:var(--border); margin:1.5rem 0;
   }
   .btn-login {
-    width:100%; justify-content:center; padding:14px;
-    font-size:15px; margin-top:0.5rem;
+    width:100%; justify-content:center;
+    padding:14px; font-size:15px; margin-top:0.5rem;
   }
   .login-erro {
     background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3);
@@ -46,67 +48,90 @@
     font-size:13px; margin-top:1rem; display:none;
   }
   .login-versao {
-    text-align:center; margin-top:2rem;
+    text-align:center; margin-top:1.5rem;
     font-size:11px; color:var(--steel2); letter-spacing:1px;
+  }
+  .codigo-hint {
+    font-size:11px; color:var(--steel2); margin-top:4px;
+    letter-spacing:0.5px;
   }
 </style>
 </head>
 <body>
 
-<div class="login-box">
-  <div class="login-logo">
-    <div class="login-logo-icon">DS</div>
-    <div class="login-titulo">Danmo SS</div>
-    <div class="login-sub">Cotações &amp; Faturas</div>
+<div class="login-wrap">
+  <div class="login-box">
+
+    <!-- LOGO -->
+    <div class="login-logo-wrap">
+      <img src="" class="login-logo-img" id="login-logo" alt="Danmo SS">
+      <div class="login-titulo">Danmo SS</div>
+      <div class="login-sub">Sistema de Cotações &amp; Faturas</div>
+    </div>
+
+    <div class="login-divider"></div>
+
+    <!-- FORMULÁRIO -->
+    <div class="form-row">
+      <label>Código de Colaborador</label>
+      <input type="text" id="login-usuario" placeholder="ex: DM0069"
+             autofocus autocomplete="off"
+             style="text-transform:uppercase;letter-spacing:2px;font-size:15px;"
+             oninput="this.value=this.value.toUpperCase()"
+             onkeydown="if(event.key==='Enter') document.getElementById('login-senha').focus()">
+      <div class="codigo-hint">Introduz o teu código de colaborador</div>
+    </div>
+
+    <div class="form-row">
+      <label>Senha</label>
+      <input type="password" id="login-senha" placeholder="••••••••"
+             onkeydown="if(event.key==='Enter') entrar()">
+    </div>
+
+    <button class="btn btn-primary btn-login" onclick="entrar()">
+      Entrar →
+    </button>
+
+    <div class="login-erro" id="login-erro">
+      Código ou senha incorrectos.
+    </div>
+
+    <div class="login-versao">
+      Porto da Beira &mdash; Danmo Service System, Lda
+    </div>
+
   </div>
-
-  <div class="login-divider"></div>
-
-  <div class="form-row">
-    <label>Email</label>
-    <input type="email" id="login-email" placeholder="o.seu.email@danmo.com" autofocus>
-  </div>
-  <div class="form-row">
-    <label>Senha</label>
-    <input type="password" id="login-senha" placeholder="••••••••"
-           onkeydown="if(event.key==='Enter') entrar()">
-  </div>
-
-  <button class="btn btn-primary btn-login" onclick="entrar()">
-    Entrar
-  </button>
-
-  <div class="login-erro" id="login-erro">
-    Email ou senha incorrectos.
-  </div>
-
-  <div class="login-versao">Porto da Beira &mdash; Danmo Service System, Lda</div>
 </div>
 
+<script src="logos.js"></script>
 <script src="supabase.js"></script>
 <script src="auth.js"></script>
+<script src="utils.js"></script>
 <script>
+  // Aplicar logo
+  document.getElementById('login-logo').src = LOGO_DANMO;
+
   // Se já está autenticado, redireciona
   if (auth.getUser()) window.location.href = 'dashboard.html';
 
   async function entrar() {
-    const email = document.getElementById('login-email').value.trim();
-    const senha = document.getElementById('login-senha').value;
-    const erroEl = document.getElementById('login-erro');
+    const usuario = document.getElementById('login-usuario').value.trim().toUpperCase();
+    const senha   = document.getElementById('login-senha').value;
+    const erroEl  = document.getElementById('login-erro');
     erroEl.style.display = 'none';
 
-    if (!email || !senha) {
-      erroEl.textContent = 'Por favor preencha o email e a senha.';
+    if (!usuario || !senha) {
+      erroEl.textContent  = 'Por favor preenche o código e a senha.';
       erroEl.style.display = 'block';
       return;
     }
 
     try {
-      const resultado = await db.get('utilizadores', { email, senha });
+      const resultado = await db.get('utilizadores', { usuario, senha });
       const user = resultado[0];
 
       if (!user || !user.ativo) {
-        erroEl.textContent = 'Email ou senha incorrectos.';
+        erroEl.textContent  = 'Código ou senha incorrectos.';
         erroEl.style.display = 'block';
         return;
       }
@@ -114,8 +139,8 @@
       auth.login(user);
       window.location.href = 'dashboard.html';
 
-    } catch (err) {
-      erroEl.textContent = 'Erro de ligação. Tente novamente.';
+    } catch(err) {
+      erroEl.textContent  = 'Erro de ligação. Tente novamente.';
       erroEl.style.display = 'block';
       console.error(err);
     }
