@@ -365,6 +365,15 @@ async function iniciar() {
   popularUtilizadoresSelect();
   document.getElementById('doc-data').value = hoje();
 
+  // Carregar taxa de câmbio padrão das configurações
+  try {
+    const cfgs = await db.get('configuracoes');
+    const taxaCfg = cfgs.find(c => c.chave === 'taxa_cambio');
+    if (taxaCfg?.valor) {
+      document.getElementById('taxa-cambio').value = taxaCfg.valor;
+    }
+  } catch(e) {}
+
   const params = new URLSearchParams(window.location.search);
   const editId = params.get('id');
   if (editId) {
@@ -709,12 +718,33 @@ function tecSelect(lid, val) {
     <option value="">— Técnico —</option>${opts}</select>`;
 }
 
-function autoTarifa(lid) {
+async function autoTarifa(lid) {
   const item = itens.find(i => i._id === lid);
   if (!item?.tecnico_id) return;
-  const tec = tecnicos.find(t => t.id === item.tecnico_id);
-  if (!tec) return;
-  item.valor_unit = docMoeda === 'USD' ? (tec.tarifa_usd||0) : (tec.tarifa_mzn||0);
+
+  // Tentar usar tarifa das configurações por tipo de cliente
+  try {
+    const chave_mzn = `tarifa_${tipoCliente}_mzn`;
+    const chave_usd = `tarifa_${tipoCliente}_usd`;
+    const cfgs = await db.get('configuracoes');
+    const cfgMZN = cfgs.find(c => c.chave === chave_mzn);
+    const cfgUSD = cfgs.find(c => c.chave === chave_usd);
+
+    if (docMoeda === 'USD' && cfgUSD?.valor) {
+      item.valor_unit = parseFloat(cfgUSD.valor) || 0;
+    } else if (cfgMZN?.valor) {
+      item.valor_unit = parseFloat(cfgMZN.valor) || 0;
+    } else {
+      // Fallback para tarifa do técnico
+      const tec = tecnicos.find(t => t.id === item.tecnico_id);
+      item.valor_unit = docMoeda === 'USD' ? (tec?.tarifa_usd||0) : (tec?.tarifa_mzn||0);
+    }
+  } catch(err) {
+    // Fallback para tarifa do técnico se configurações falharem
+    const tec = tecnicos.find(t => t.id === item.tecnico_id);
+    item.valor_unit = docMoeda === 'USD' ? (tec?.tarifa_usd||0) : (tec?.tarifa_mzn||0);
+  }
+
   const el = document.getElementById('vu_' + lid);
   if (el) el.value = item.valor_unit;
   calcItemTotal(item);
