@@ -69,6 +69,11 @@
     border-radius:4px; border-left:3px solid var(--amber);
     display:none;
   }
+  .desconto-row {
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .total-linha.desconto { color:#f87171; }
+  .total-linha.desconto span:first-child { color:#f87171; }
 </style>
 </head>
 <body>
@@ -273,6 +278,21 @@
           <span style="color:var(--steel);">Subtotal</span>
           <span id="val-subtotal">0,00</span>
         </div>
+
+        <!-- DESCONTO -->
+        <div class="total-linha" id="linha-desconto">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="color:#f87171;">Desconto</span>
+            <div class="toggle-group" style="transform:scale(0.85);transform-origin:left;">
+              <button class="toggle-opt active" onclick="setDescontoTipo('fixo',this)" style="padding:4px 10px;font-size:11px;">MZN</button>
+              <button class="toggle-opt" onclick="setDescontoTipo('pct',this)" style="padding:4px 10px;font-size:11px;">%</button>
+            </div>
+            <input type="number" id="desconto-val" value="0" min="0" step="0.01"
+                   oninput="calcTotais()" style="width:90px;padding:5px 8px;font-size:13px;">
+          </div>
+          <span style="color:#f87171;" id="val-desconto">0,00</span>
+        </div>
+
         <div class="total-linha" id="linha-iva" style="display:none;">
           <span style="color:var(--steel);" id="label-iva">IVA (16%)</span>
           <span id="val-iva">0,00</span>
@@ -313,7 +333,8 @@ let docTipo  = 'cotacao';
 let docServ  = 'mao';
 let docMoeda = 'MZN';
 let ivaOn    = false;
-let tipoCliente = 'interno';
+let tipoCliente  = 'interno';
+let descontoTipo = 'fixo'; // 'fixo' ou 'pct'
 let itens    = [];
 let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [];
 
@@ -398,6 +419,7 @@ async function carregarDocumento(id) {
     docMoeda    = doc.moeda;
     ivaOn       = doc.iva_incluido;
     tipoCliente = doc.tipo_cliente || 'interno';
+    descontoTipo = doc.desconto_tipo || 'fixo';
 
     activarToggle('tg-tipo',    docTipo     === 'fatura'   ? 1 : 0);
     activarToggle('tg-servico', docServ     === 'material' ? 1 : docServ === 'misto' ? 2 : 0);
@@ -416,6 +438,12 @@ async function carregarDocumento(id) {
     setVal('doc-assunto',  doc.assunto);
     setVal('taxa-cambio',  doc.taxa_cambio || 64);
     setVal('iva-pct',      doc.iva_pct || 16);
+    setVal('desconto-val', doc.desconto_input || 0);
+    // Toggle desconto tipo
+    const descontoIdx = (doc.desconto_tipo === 'pct') ? 1 : 0;
+    document.getElementById('linha-desconto')
+      ?.querySelectorAll('.toggle-opt')
+      .forEach((b,i) => b.classList.toggle('active', i === descontoIdx));
     setTimeout(() => { setVal('sel-utilizador', doc.utilizador_id); }, 100);
 
     document.getElementById('row-iva-pct').style.display = ivaOn ? 'flex' : 'none';
@@ -712,18 +740,43 @@ function calcItemTotal(item) {
     : (item.qtd||1) * (item.tempo||1) * (item.valor_unit||0);
 }
 
+function setDescontoTipo(t, btn) {
+  descontoTipo = t;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-opt')
+     .forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Reset valor
+  document.getElementById('desconto-val').value = 0;
+  calcTotais();
+}
+
 // ── TOTAIS ────────────────────────────────────────────
 function calcTotais() {
-  const subtotal = itens.reduce((s,it) => s + (it.total||0), 0);
-  const ivaPct   = parseFloat(getVal('iva-pct') || 16);
-  const ivaAmt   = ivaOn ? subtotal * ivaPct / 100 : 0;
-  const total    = subtotal + ivaAmt;
-  const taxa     = parseFloat(getVal('taxa-cambio') || 64);
-  const totalMZN = docMoeda === 'USD' ? total * taxa : total;
+  const subtotal   = itens.reduce((s,it) => s + (it.total||0), 0);
+  const descontoInput = parseFloat(getVal('desconto-val') || 0);
+  const descontoAmt   = descontoTipo === 'pct'
+    ? subtotal * descontoInput / 100
+    : descontoInput;
+  const aposDesconto  = Math.max(0, subtotal - descontoAmt);
+  const ivaPct     = parseFloat(getVal('iva-pct') || 16);
+  const ivaAmt     = ivaOn ? aposDesconto * ivaPct / 100 : 0;
+  const total      = aposDesconto + ivaAmt;
+  const taxa       = parseFloat(getVal('taxa-cambio') || 64);
+  const totalMZN   = docMoeda === 'USD' ? total * taxa : total;
 
   document.getElementById('val-subtotal').textContent = fmtNum(subtotal) + ' ' + docMoeda;
   document.getElementById('label-total').textContent  = 'TOTAL ' + docMoeda;
-  document.getElementById('val-total').textContent    = fmtNum(total)    + ' ' + docMoeda;
+  document.getElementById('val-total').textContent    = fmtNum(total) + ' ' + docMoeda;
+
+  // Desconto
+  if (descontoAmt > 0) {
+    const label = descontoTipo === 'pct'
+      ? `- ${fmtNum(descontoAmt)} ${docMoeda} (${descontoInput}%)`
+      : `- ${fmtNum(descontoAmt)} ${docMoeda}`;
+    document.getElementById('val-desconto').textContent = label;
+  } else {
+    document.getElementById('val-desconto').textContent = '0,00';
+  }
 
   if (ivaOn) {
     document.getElementById('label-iva').textContent = `IVA (${ivaPct}%)`;
@@ -747,12 +800,15 @@ async function guardar(silencioso = false) {
   if (!numero)  { showToast('Insira o número do documento.', 'error'); return false; }
   if (!clinome) { showToast('Insira o nome do cliente.',     'error'); return false; }
 
-  const taxa     = parseFloat(getVal('taxa-cambio') || 64);
-  const ivaPct   = parseFloat(getVal('iva-pct')     || 16);
-  const subtotal = itens.reduce((s,it) => s + (it.total||0), 0);
-  const ivaAmt   = ivaOn ? subtotal * ivaPct / 100 : 0;
-  const total    = subtotal + ivaAmt;
-  const totalMZN = docMoeda === 'USD' ? total * taxa : total;
+  const taxa        = parseFloat(getVal('taxa-cambio') || 64);
+  const ivaPct      = parseFloat(getVal('iva-pct')     || 16);
+  const descontoInput = parseFloat(getVal('desconto-val') || 0);
+  const subtotal    = itens.reduce((s,it) => s + (it.total||0), 0);
+  const descontoAmt = descontoTipo === 'pct' ? subtotal * descontoInput / 100 : descontoInput;
+  const aposDesconto = Math.max(0, subtotal - descontoAmt);
+  const ivaAmt      = ivaOn ? aposDesconto * ivaPct / 100 : 0;
+  const total       = aposDesconto + ivaAmt;
+  const totalMZN    = docMoeda === 'USD' ? total * taxa : total;
 
   const utilId = getVal('sel-utilizador');
   const util   = utilizadores.find(u => u.id === utilId);
@@ -775,6 +831,9 @@ async function guardar(silencioso = false) {
     enviado_cargo:    getVal('cli-env-cargo'),
     assunto:          getVal('doc-assunto'),
     subtotal,
+    desconto:         descontoAmt,
+    desconto_tipo:    descontoTipo,
+    desconto_input:   descontoInput,
     iva_amt:          ivaAmt,
     total,
     total_mzn:        totalMZN,
