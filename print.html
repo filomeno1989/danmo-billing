@@ -53,10 +53,18 @@ body {
   font-size: 12pt;
   color: #1a1a1a;
   padding: 16mm 18mm 14mm 18mm;
-  min-height: 277mm;
+  height: 297mm;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+/* ── CORPO FLEXÍVEL ── */
+.doc-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── CABEÇALHO COM LOGOS ── */
@@ -457,6 +465,9 @@ async function carregarERender() {
         </div>
       </div>
 
+      <!-- CORPO — cresce para empurrar rodapé para baixo -->
+      <div class="doc-body">
+
       <!-- De / Para -->
       <div class="doc-parties">
         <div>
@@ -517,7 +528,9 @@ async function carregarERender() {
         </div>
       </div>
 
-      <!-- Rodapé: código + logo Mesquita -->
+      </div><!-- /doc-body -->
+
+      <!-- Rodapé FIXO em baixo -->
       <div class="doc-footer">
         <div class="footer-codigo">
           <b>Código</b> DAN_ADO_FR_030_REV02_29.05.26<br>
