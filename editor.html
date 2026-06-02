@@ -69,6 +69,18 @@
     border-radius:4px; border-left:3px solid var(--amber);
     display:none;
   }
+  .tarifa-atalhos {
+    display:flex; gap:4px; margin-top:4px; flex-wrap:wrap;
+  }
+  .tarifa-atalho-btn {
+    background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.25);
+    color:var(--amber); border-radius:4px; padding:2px 7px;
+    font-size:11px; cursor:pointer; font-family:'Source Sans 3';
+    font-weight:600; transition:all 0.2s; white-space:nowrap;
+  }
+  .tarifa-atalho-btn:hover {
+    background:rgba(245,158,11,0.25); border-color:var(--amber);
+  }
   .desconto-row {
     display:flex; gap:10px; align-items:center; flex-wrap:wrap;
   }
@@ -338,10 +350,10 @@ let tipoCliente  = 'interno';
 let descontoTipo = 'fixo'; // 'fixo' ou 'pct'
 let itens    = [];
 let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [];
-let configCache = {}; // tarifas e configurações gerais
 
 // Unidades disponíveis
 const UNIDADES = ['horas','hora','dias','Und','Litro','Kg','Metro','Par','Caixa','Rolo','Tonelada','m²','ml'];
+const TARIFAS_RAPIDAS = [3225.50, 2013.94];
 
 // ── INIT ──────────────────────────────────────────────
 document.getElementById('user-nome').textContent = user.nome;
@@ -355,25 +367,12 @@ buildNav();
 iniciar();
 
 async function iniciar() {
-  const [clientes_r, tecnicos_r, utilizadores_r, documentos_r, configs_r] = await Promise.all([
+  [clientes, tecnicos, utilizadores, todosDocumentos] = await Promise.all([
     db.get('clientes'),
     db.get('tecnicos'),
     db.get('utilizadores'),
-    db.get('documentos'),
-    db.get('configuracoes')
+    db.get('documentos')
   ]);
-  clientes = clientes_r;
-  tecnicos = tecnicos_r;
-  utilizadores = utilizadores_r;
-  todosDocumentos = documentos_r;
-
-  // Guardar configurações em cache (chave -> valor)
-  configs_r.forEach(c => { configCache[c.chave] = c.valor; });
-
-  // Taxa de câmbio padrão das configurações
-  if (configCache['taxa_cambio']) {
-    document.getElementById('taxa-cambio').value = configCache['taxa_cambio'];
-  }
 
   popularClientesSelect();
   popularUtilizadoresSelect();
@@ -525,13 +524,6 @@ function setTipoCliente(t, btn) {
   tipoCliente = t;
   activarBtn(btn);
   actualizarInfoTipoCliente();
-  // Actualizar tarifas de todos os itens de mão-de-obra já adicionados
-  itens.forEach(item => {
-    const isMaoItem = item.item_tipo === 'mao' || (docServ === 'mao');
-    if (isMaoItem && item.tecnico_id) {
-      autoTarifa(item._id);
-    }
-  });
 }
 
 function actualizarInfoTipoCliente() {
@@ -652,8 +644,13 @@ function renderItens() {
         <td><input type="number" value="${item.tempo}" min="0.5" step="0.5" style="width:60px;"
             oninput="updateItem('${lid}','tempo',this.value)"></td>
         <td>${undSelectHtml(lid, item.unidade)}</td>
-        <td><input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
-            oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_${lid}"></td>
+        <td>
+          <input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
+            oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_${lid}">
+          <div class="tarifa-atalhos">
+            ${TARIFAS_RAPIDAS.map(v=>`<button class="tarifa-atalho-btn" onclick="aplicarTarifa('${lid}',${v})">${fmtNum(v)}</button>`).join('')}
+          </div>
+        </td>
         <td class="item-total" id="tot_${lid}">${fmtNum(item.total)}</td>
         <td><button class="item-del" onclick="removerItem('${lid}')">×</button></td>`;
 
@@ -694,8 +691,11 @@ function renderItens() {
           : `<span style="color:var(--steel2);font-size:12px;">—</span>`
         }</td>
         <td>${undSelectHtml(lid, item.unidade || (isMao ? 'horas' : 'Und'))}</td>
-        <td><input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
-            oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_${lid}"></td>
+        <td>
+          <input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
+            oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_${lid}">
+          ${item.item_tipo === 'mao' ? `<div class="tarifa-atalhos">${TARIFAS_RAPIDAS.map(v=>`<button class="tarifa-atalho-btn" onclick="aplicarTarifa('${lid}',${v})">${fmtNum(v)}</button>`).join('')}</div>` : ''}
+        </td>
         <td class="item-total" id="tot_${lid}">${fmtNum(item.total)}</td>
         <td><button class="item-del" onclick="removerItem('${lid}')">×</button></td>`;
     }
@@ -734,24 +734,23 @@ function tecSelect(lid, val) {
 function autoTarifa(lid) {
   const item = itens.find(i => i._id === lid);
   if (!item?.tecnico_id) return;
-
-  // Usar tarifa das configurações por tipo de cliente
-  const chave = docMoeda === 'USD'
-    ? `tarifa_${tipoCliente}_usd`
-    : `tarifa_${tipoCliente}_mzn`;
-
-  const tarifaCfg = configCache[chave];
-
-  if (tarifaCfg) {
-    item.valor_unit = parseFloat(tarifaCfg) || 0;
-  } else {
-    // Fallback para tarifa do técnico se configurações não carregaram
-    const tec = tecnicos.find(t => t.id === item.tecnico_id);
-    item.valor_unit = docMoeda === 'USD' ? (tec?.tarifa_usd||0) : (tec?.tarifa_mzn||0);
-  }
-
+  const tec = tecnicos.find(t => t.id === item.tecnico_id);
+  if (!tec) return;
+  item.valor_unit = docMoeda === 'USD' ? (tec.tarifa_usd||0) : (tec.tarifa_mzn||0);
   const el = document.getElementById('vu_' + lid);
   if (el) el.value = item.valor_unit;
+  calcItemTotal(item);
+  calcTotais();
+  const totEl = document.getElementById('tot_' + lid);
+  if (totEl) totEl.textContent = fmtNum(item.total);
+}
+
+function aplicarTarifa(lid, valor) {
+  const item = itens.find(i => i._id === lid);
+  if (!item) return;
+  item.valor_unit = valor;
+  const el = document.getElementById('vu_' + lid);
+  if (el) el.value = valor;
   calcItemTotal(item);
   calcTotais();
   const totEl = document.getElementById('tot_' + lid);
