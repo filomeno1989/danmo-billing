@@ -349,11 +349,10 @@ let ivaOn    = false;
 let tipoCliente  = 'interno';
 let descontoTipo = 'fixo'; // 'fixo' ou 'pct'
 let itens    = [];
-let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [];
+let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [], tarifas = [];
 
 // Unidades disponíveis
 const UNIDADES = ['horas','hora','dias','Und','Litro','Kg','Metro','Par','Caixa','Rolo','Tonelada','m²','ml'];
-const TARIFAS_RAPIDAS = [3225.50, 2013.94];
 
 // ── INIT ──────────────────────────────────────────────
 document.getElementById('user-nome').textContent = user.nome;
@@ -367,12 +366,14 @@ buildNav();
 iniciar();
 
 async function iniciar() {
-  [clientes, tecnicos, utilizadores, todosDocumentos] = await Promise.all([
+  [clientes, tecnicos, utilizadores, todosDocumentos, tarifas] = await Promise.all([
     db.get('clientes'),
     db.get('tecnicos'),
     db.get('utilizadores'),
-    db.get('documentos')
+    db.get('documentos'),
+    db.get('tarifas', { ativo: true })
   ]);
+  tarifas.sort((a,b) => b.valor_mzn - a.valor_mzn);
 
   popularClientesSelect();
   popularUtilizadoresSelect();
@@ -648,7 +649,7 @@ function renderItens() {
           <input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
             oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_${lid}">
           <div class="tarifa-atalhos">
-            ${TARIFAS_RAPIDAS.map(v=>`<button class="tarifa-atalho-btn" onclick="aplicarTarifa('${lid}',${v})">${fmtNum(v)}</button>`).join('')}
+            ${tarifas.map(t=>`<button class="tarifa-atalho-btn" onclick="aplicarTarifa('${lid}',${t.valor_mzn})" title="${t.descricao}">${fmtNum(t.valor_mzn)}</button>`).join('')}
           </div>
         </td>
         <td class="item-total" id="tot_${lid}">${fmtNum(item.total)}</td>
@@ -694,7 +695,7 @@ function renderItens() {
         <td>
           <input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
             oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_${lid}">
-          ${item.item_tipo === 'mao' ? `<div class="tarifa-atalhos">${TARIFAS_RAPIDAS.map(v=>`<button class="tarifa-atalho-btn" onclick="aplicarTarifa('${lid}',${v})">${fmtNum(v)}</button>`).join('')}</div>` : ''}
+          ${item.item_tipo === 'mao' ? `<div class="tarifa-atalhos">${tarifas.map(t=>`<button class="tarifa-atalho-btn" onclick="aplicarTarifa('${lid}',${t.valor_mzn})" title="${t.descricao}">${fmtNum(t.valor_mzn)}</button>`).join('')}</div>` : ''}
         </td>
         <td class="item-total" id="tot_${lid}">${fmtNum(item.total)}</td>
         <td><button class="item-del" onclick="removerItem('${lid}')">×</button></td>`;
