@@ -349,7 +349,7 @@ let ivaOn    = false;
 let tipoCliente  = 'interno';
 let descontoTipo = 'fixo'; // 'fixo' ou 'pct'
 let itens    = [];
-let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [], tarifas = [];
+let clientes = [], tecnicos = [], utilizadores = [], todosDocumentos = [], tarifas = [], materiais = [];
 
 // Unidades disponíveis
 const UNIDADES = ['horas','hora','dias','Und','Litro','Kg','Metro','Par','Caixa','Rolo','Tonelada','m²','ml'];
@@ -366,14 +366,16 @@ buildNav();
 iniciar();
 
 async function iniciar() {
-  [clientes, tecnicos, utilizadores, todosDocumentos, tarifas] = await Promise.all([
+  [clientes, tecnicos, utilizadores, todosDocumentos, tarifas, materiais] = await Promise.all([
     db.get('clientes'),
     db.get('tecnicos'),
     db.get('utilizadores'),
     db.get('documentos'),
-    db.get('tarifas', { ativo: true })
+    db.get('tarifas', { ativo: true }),
+    db.get('materiais', { ativo: true })
   ]);
   tarifas.sort((a,b) => b.valor_mzn - a.valor_mzn);
+  materiais.sort((a,b) => (a.referencia||'').localeCompare(b.referencia||''));
 
   popularClientesSelect();
   popularUtilizadoresSelect();
@@ -605,7 +607,7 @@ function adicionarItem() {
   itens.push({
     _id:        'new_' + Date.now(),
     item_tipo:  docServ === 'material' ? 'material' : 'mao',
-    tecnico_id: '', descricao: '',
+    material_id: null, tecnico_id: '', descricao: '',
     qtd: 1, tempo: 1, unidade: 'horas',
     valor_unit: 0, total: 0
   });
@@ -658,13 +660,19 @@ function renderItens() {
     } else if (docServ === 'material') {
       tr.innerHTML = `
         <td style="color:var(--steel2);width:24px;font-size:12px;">${idx+1}</td>
-        <td><input type="text" value="${item.descricao||''}" placeholder="Descrição do material"
-            oninput="updateItem('${lid}','descricao',this.value)"></td>
+        <td>
+          <select onchange="selMaterial('${lid}',this.value)" style="margin-bottom:4px;">
+            <option value="">— Selecionar material —</option>
+            ${materiais.map(m=>`<option value="${m.id}" ${item.material_id===m.id?'selected':''}>${m.referencia?m.referencia+' — ':''}${m.nome}</option>`).join('')}
+          </select>
+          <input type="text" value="${item.descricao||''}" placeholder="Ou escrever manualmente"
+            oninput="updateItem('${lid}','descricao',this.value)" style="font-size:12px;" id="desc_${lid}">
+        </td>
         <td><input type="number" value="${item.qtd}" min="1" style="width:52px;"
             oninput="updateItem('${lid}','qtd',this.value)"></td>
         <td>${undSelectHtml(lid, item.unidade || 'Und')}</td>
         <td><input type="number" value="${item.valor_unit}" step="0.01" style="width:105px;"
-            oninput="updateItem('${lid}','valor_unit',this.value)"></td>
+            oninput="updateItem('${lid}','valor_unit',this.value)" id="vu_mat_${lid}"></td>
         <td class="item-total" id="tot_${lid}">${fmtNum(item.total)}</td>
         <td><button class="item-del" onclick="removerItem('${lid}')">×</button></td>`;
 
@@ -681,8 +689,14 @@ function renderItens() {
         </td>
         <td>${isMao
           ? tecSelect(lid, item.tecnico_id)
-          : `<input type="text" value="${item.descricao||''}" placeholder="Descrição"
-               oninput="updateItem('${lid}','descricao',this.value)">`
+          : `<div>
+               <select onchange="selMaterial('${lid}',this.value)" style="margin-bottom:3px;font-size:12px;">
+                 <option value="">— Selecionar material —</option>
+                 ${materiais.map(m=>`<option value="${m.id}" ${item.material_id===m.id?'selected':''}>${m.referencia?m.referencia+' — ':''}${m.nome}</option>`).join('')}
+               </select>
+               <input type="text" value="${item.descricao||''}" placeholder="Ou escrever manualmente"
+                 oninput="updateItem('${lid}','descricao',this.value)" style="font-size:12px;" id="desc_${lid}">
+             </div>`
         }</td>
         <td><input type="number" value="${item.qtd}" min="1" style="width:52px;"
             oninput="updateItem('${lid}','qtd',this.value)"></td>
@@ -744,6 +758,27 @@ function autoTarifa(lid) {
   calcTotais();
   const totEl = document.getElementById('tot_' + lid);
   if (totEl) totEl.textContent = fmtNum(item.total);
+}
+
+function selMaterial(lid, materialId) {
+  const item = itens.find(i => i._id === lid); if (!item) return;
+  if (!materialId) return;
+  const mat = materiais.find(m => m.id === materialId); if (!mat) return;
+  item.material_id = mat.id;
+  item.descricao   = mat.nome;
+  item.unidade     = mat.unidade || 'Und';
+  item.valor_unit  = mat.preco_mzn || 0;
+  // Actualizar campos visuais
+  const descEl = document.getElementById('desc_' + lid);
+  if (descEl) descEl.value = mat.nome;
+  const vuEl = document.getElementById('vu_mat_' + lid) || document.getElementById('vu_' + lid);
+  if (vuEl) vuEl.value = mat.preco_mzn || 0;
+  calcItemTotal(item);
+  calcTotais();
+  const totEl = document.getElementById('tot_' + lid);
+  if (totEl) totEl.textContent = fmtNum(item.total);
+  // Re-render para actualizar unidade
+  renderItens();
 }
 
 function aplicarTarifa(lid, valor) {
