@@ -261,7 +261,10 @@ body {
   border-collapse: collapse;
   border: none;
 }
-.tabela-layout-impressao td, .tabela-layout-impressao th {
+/* CORREÇÃO AQUI: o seletor '>' garante que a tabela de itens dentro do documento NÃO perde as bordas e paddings! */
+.tabela-layout-impressao > thead > tr > td,
+.tabela-layout-impressao > tbody > tr > td,
+.tabela-layout-impressao > tfoot > tr > td {
   padding: 0;
   border: none;
 }
@@ -397,9 +400,10 @@ async function carregarERender() {
     const isMao = doc.servico === 'mao';
     const isMat = doc.servico === 'material';
     let thHtml = '';
+    // CORREÇÃO AQUI: "#" alterado para "Nº" em todos os cenários
     if (isMao) {
       thHtml = `<tr>
-        <th style="width:30px;">#</th>
+        <th style="width:30px;">Nº</th>
         <th>Técnico</th>
         <th style="width:44px;">Qtd</th>
         <th style="width:60px;">Tempo</th>
@@ -409,7 +413,7 @@ async function carregarERender() {
       </tr>`;
     } else if (isMat) {
       thHtml = `<tr>
-        <th style="width:30px;">#</th>
+        <th style="width:30px;">Nº</th>
         <th>Descrição</th>
         <th style="width:44px;">Qtd</th>
         <th style="width:65px;">Unidade</th>
@@ -418,7 +422,7 @@ async function carregarERender() {
       </tr>`;
     } else {
       thHtml = `<tr>
-        <th style="width:30px;">#</th>
+        <th style="width:30px;">Nº</th>
         <th style="width:68px;">Tipo</th>
         <th>Técnico / Descrição</th>
         <th style="width:44px;">Qtd</th>
