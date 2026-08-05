@@ -255,6 +255,21 @@ body {
 .footer-codigo b { color: #000; }
 .logo-mesquita { height: 32px; width: auto; object-fit: contain; }
 
+/* ── LAYOUT ESTRUTURAL DE IMPRESSÃO (TABELA MÁGICA) ── */
+.tabela-layout-impressao {
+  width: 100%;
+  border-collapse: collapse;
+  border: none;
+}
+.tabela-layout-impressao td, .tabela-layout-impressao th {
+  padding: 0;
+  border: none;
+}
+
+@media screen {
+  .print-header-space, .print-footer-space { display: none; }
+}
+
 /* ── IMPRESSÃO ── */
 @media print {
   body { background: white; padding: 0; }
@@ -263,11 +278,22 @@ body {
 
   @page { margin: 0; size: A4; }
 
-  /* Cabeçalho não parte no meio */
-  .doc-header { page-break-after: avoid; break-after: avoid; }
+  /* Cabeçalho fixo no topo de todas as páginas */
+  .doc-header { 
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: #fff;
+    z-index: 1000;
+  }
 
-  /* Rodapé não parte no meio */
-  .doc-footer { page-break-before: avoid; break-before: avoid; }
+  /* Rodapé fixo no fundo de todas as páginas */
+  .doc-footer { 
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #fff;
+    z-index: 1000;
+    margin-top: 0;
+  }
 
   /* Linhas da tabela não partem no meio */
   .items-table tr { page-break-inside: avoid; break-inside: avoid; }
@@ -316,6 +342,32 @@ body {
 <script src="logos.js"></script>
 <script>
 auth.require();
+
+// NOVA LÓGICA DE MARGENS (Calcula os espaços do cabeçalho e rodapé para a tabela)
+function ajustarMargensImpressao() {
+  const cab = document.querySelector('.doc-header');
+  const rod = document.querySelector('.doc-footer');
+  if (!cab || !rod) return;
+  
+  const alturaCab = cab.offsetHeight + 15; // +15px de folga extra
+  const alturaRod = rod.offsetHeight + 15;
+
+  let estilo = document.getElementById('_margem-dinamica');
+  if (!estilo) {
+    estilo = document.createElement('style');
+    estilo.id = '_margem-dinamica';
+    document.head.appendChild(estilo);
+  }
+  
+  estilo.textContent = `
+    @media print {      
+      .print-header-space { height: ${alturaCab}px !important; }
+      .print-footer-space { height: ${alturaRod}px !important; }
+    }
+  `;
+}
+window.addEventListener('beforeprint', ajustarMargensImpressao);
+
 
 async function carregarERender() {
   const params = new URLSearchParams(window.location.search);
@@ -438,10 +490,10 @@ async function carregarERender() {
 
     const dataExtensa = dataExtenso(doc.data);
 
-    // ── RENDER ──
+    // ── RENDER (COM ESTRUTURA DE TABELA) ──
     document.getElementById('doc-page').innerHTML = `
 
-      <!-- CABEÇALHO -->
+      <!-- CABEÇALHO REAL (FIXO) -->
       <div class="doc-header">
         <div class="doc-header-inner">
           <img src="${LOGO_DANMO}" class="logo-danmo" alt="Danmo SS">
@@ -456,71 +508,95 @@ async function carregarERender() {
         </div>
       </div>
 
-      <!-- CORPO -->
-      <div class="doc-body">
-        <div class="doc-parties">
-          <div>
-            <div class="party-label">De</div>
-            <div class="party-name">Danmo Service System, Lda</div>
-            <div class="party-detail">
-              Porto da Beira, Sofala — Moçambique<br>
-              NUIT: 400024022<br>
-              Tel: +258 84 301 9615
-            </div>
-          </div>
-          <div>
-            <div class="party-label">Para</div>
-            <div class="party-name">${doc.cliente_nome||'—'}</div>
-            <div class="party-detail">
-              ${doc.cliente_morada   ? doc.cliente_morada   + '<br>' : ''}
-              ${doc.cliente_nuit     ? 'NUIT: ' + doc.cliente_nuit + '<br>' : ''}
-              ${doc.cliente_contacto ? 'Tel: '  + doc.cliente_contacto + '<br>' : ''}
-              ${doc.enviado_nome     ? '<br>Att: <strong>' + doc.enviado_nome + '</strong>' + (doc.enviado_cargo ? ' — ' + doc.enviado_cargo : '') : ''}
-            </div>
-          </div>
-        </div>
+      <!-- TABELA DE LAYOUT PARA EMPURRAR O CONTEÚDO EM TODAS AS PÁGINAS -->
+      <table class="tabela-layout-impressao">
+        <thead>
+          <tr>
+            <td>
+              <div class="print-header-space"></div>
+            </td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <!-- CORPO DO DOCUMENTO VEM AQUI PARA DENTRO -->
+              <div class="doc-body">
+                <div class="doc-parties">
+                  <div>
+                    <div class="party-label">De</div>
+                    <div class="party-name">Danmo Service System, Lda</div>
+                    <div class="party-detail">
+                      Porto da Beira, Sofala — Moçambique<br>
+                      NUIT: 400024022<br>
+                      Tel: +258 84 301 9615
+                    </div>
+                  </div>
+                  <div>
+                    <div class="party-label">Para</div>
+                    <div class="party-name">${doc.cliente_nome||'—'}</div>
+                    <div class="party-detail">
+                      ${doc.cliente_morada   ? doc.cliente_morada   + '<br>' : ''}
+                      ${doc.cliente_nuit     ? 'NUIT: ' + doc.cliente_nuit + '<br>' : ''}
+                      ${doc.cliente_contacto ? 'Tel: '  + doc.cliente_contacto + '<br>' : ''}
+                      ${doc.enviado_nome     ? '<br>Att: <strong>' + doc.enviado_nome + '</strong>' + (doc.enviado_cargo ? ' — ' + doc.enviado_cargo : '') : ''}
+                    </div>
+                  </div>
+                </div>
 
-        ${doc.assunto ? `
-        <div class="doc-assunto">
-          <strong>Assunto:</strong><br>
-          ${doc.assunto.replace(/\n/g,'<br>')}
-        </div>` : ''}
+                ${doc.assunto ? `
+                <div class="doc-assunto">
+                  <strong>Assunto:</strong><br>
+                  ${doc.assunto.replace(/\n/g,'<br>')}
+                </div>` : ''}
 
-        <table class="items-table">
-          <thead>${thHtml}</thead>
-          <tbody>${linhasHtml}</tbody>
-        </table>
-      </div>
+                <table class="items-table">
+                  <thead>${thHtml}</thead>
+                  <tbody>${linhasHtml}</tbody>
+                </table>
+              </div>
 
-      <!-- TOTAIS -->
-      <div class="doc-totais-area">
-        <div class="doc-totais-wrap">
-          <div class="totais-block">
-            ${totaisHtml}
-            ${equivHtml}
-          </div>
-        </div>
-      </div>
+              <!-- TOTAIS -->
+              <div class="doc-totais-area">
+                <div class="doc-totais-wrap">
+                  <div class="totais-block">
+                    ${totaisHtml}
+                    ${equivHtml}
+                  </div>
+                </div>
+              </div>
 
-      <!-- EXTENSO -->
-      <div class="extenso-area">
-        <div class="extenso-block">${numPorExtenso(totalMZN)}</div>
-      </div>
+              <!-- EXTENSO -->
+              <div class="extenso-area">
+                <div class="extenso-block">${numPorExtenso(totalMZN)}</div>
+              </div>
 
-      <!-- ASSINATURA -->
-      <div class="assinatura-area">
-        <div class="assinatura-wrap">
-          <div class="assinatura-inner">
-            <div class="assinatura-data">${dataExtensa}</div>
-            <div class="assinatura-linha">
-              <div class="assinatura-nome">${doc.utilizador_nome || '________________________________'}</div>
-              <div class="assinatura-cargo">${doc.utilizador_cargo ? '(' + doc.utilizador_cargo + ')' : ''}</div>
-            </div>
-          </div>
-        </div>
-      </div>
+              <!-- ASSINATURA -->
+              <div class="assinatura-area">
+                <div class="assinatura-wrap">
+                  <div class="assinatura-inner">
+                    <div class="assinatura-data">${dataExtensa}</div>
+                    <div class="assinatura-linha">
+                      <div class="assinatura-nome">${doc.utilizador_nome || '________________________________'}</div>
+                      <div class="assinatura-cargo">${doc.utilizador_cargo ? '(' + doc.utilizador_cargo + ')' : ''}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>
+              <div class="print-footer-space"></div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
 
-      <!-- RODAPÉ -->
+      <!-- RODAPÉ REAL (FIXO) -->
       <div class="doc-footer">
         <div class="footer-codigo">
           <b>Código</b> DAN_ADO_FR_030_REV02_29.05.26<br>
@@ -530,6 +606,9 @@ async function carregarERender() {
         <img src="${LOGO_MESQUITA}" class="logo-mesquita" alt="Grupo Mesquita">
       </div>
     `;
+
+    // Chama o ajuste de layout da tabela logo após renderizar
+    setTimeout(ajustarMargensImpressao, 150);
 
   } catch(err) {
     console.error(err);
