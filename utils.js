@@ -24,51 +24,93 @@ function hoje() {
   return new Date().toISOString().split('T')[0];
 }
 
-// Número por extenso em português (meticais)
-function numPorExtenso(n) {
-  n = Math.round(n * 100) / 100;
-  if (n === 0) return 'Zero meticais';
+// Número por extenso em português (meticais) com regras gramaticais corretas
+function numPorExtenso(numero) {
+  numero = Math.round(numero * 100) / 100;
+  if (!numero || numero === 0) return 'Zero meticais';
 
-  const u = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove',
-             'dez','onze','doze','treze','catorze','quinze','dezasseis',
-             'dezassete','dezoito','dezanove'];
-  const d = ['','dez','vinte','trinta','quarenta','cinquenta',
-             'sessenta','setenta','oitenta','noventa'];
-  const c = ['','cem','duzentos','trezentos','quatrocentos','quinhentos',
-             'seiscentos','setecentos','oitocentos','novecentos'];
+  const unidades = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+  const dezenas10 = ['dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezasseis', 'dezassete', 'dezoito', 'dezanove'];
+  const dezenas = ['', 'dez', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  const centenas = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
 
-  function centenas(n) {
+  // Função interna para converter blocos de 3 dígitos (0 a 999)
+  function converteBloco(n) {
     if (n === 0) return '';
-    if (n === 100) return 'cem';
-    const h = Math.floor(n / 100);
-    const r = n % 100;
-    let s = h > 0 ? c[h] : '';
-    if (r > 0) {
-      if (s) s += ' e ';
-      s += r < 20 ? u[r] : d[Math.floor(r / 10)] + (r % 10 > 0 ? ' e ' + u[r % 10] : '');
+    if (n === 100) return 'cem'; // "Cem" apenas quando é 100 exato
+    
+    let c = Math.floor(n / 100);
+    let d = Math.floor((n % 100) / 10);
+    let u = n % 10;
+    
+    let partes = [];
+    if (c > 0) partes.push(centenas[c]); // Se passou de 100, já usa "cento"
+    
+    if (d === 1) {
+      partes.push(dezenas10[u]);
+    } else {
+      if (d > 1) partes.push(dezenas[d]);
+      if (u > 0) partes.push(unidades[u]);
     }
-    return s;
+    
+    return partes.join(' e ');
   }
 
-  const intPart = Math.floor(n);
-  const decPart = Math.round((n - intPart) * 100);
-
-  const bi = Math.floor(intPart / 1000000000);
-  const mi = Math.floor((intPart % 1000000000) / 1000000);
-  const th = Math.floor((intPart % 1000000) / 1000);
-  const re = intPart % 1000;
-
-  let parts = [];
-  if (bi > 0) parts.push(centenas(bi) + (bi === 1 ? ' bilião' : ' biliões'));
-  if (mi > 0) parts.push(centenas(mi) + (mi === 1 ? ' milhão' : ' milhões'));
-  if (th > 0) parts.push(centenas(th) + ' mil');
-  if (re > 0) parts.push(centenas(re));
-
-  let result = parts.join(', ');
-  result += intPart === 1 ? ' metical' : ' meticais';
-  if (decPart > 0) result += ' e ' + centenas(decPart) + (decPart === 1 ? ' centavo' : ' centavos');
-
-  return result.charAt(0).toUpperCase() + result.slice(1);
+  let meticais = Math.floor(numero);
+  let centavos = Math.round((numero - meticais) * 100);
+  let resultado = [];
+  
+  if (meticais > 0) {
+    let bilhoes = Math.floor(meticais / 1000000000);
+    let milhoes = Math.floor((meticais % 1000000000) / 1000000);
+    let milhares = Math.floor((meticais % 1000000) / 1000);
+    let resto = meticais % 1000;
+    
+    let partesMeticais = [];
+    
+    if (bilhoes > 0) {
+      partesMeticais.push(converteBloco(bilhoes) + (bilhoes === 1 ? ' bilião' : ' biliões'));
+    }
+    
+    if (milhoes > 0) {
+      partesMeticais.push(converteBloco(milhoes) + (milhoes === 1 ? ' milhão' : ' milhões'));
+    }
+    
+    if (milhares > 0) {
+      let strMilhares = converteBloco(milhares);
+      if (strMilhares === 'um') strMilhares = ''; // Para evitar dizer "um mil", fica apenas "mil"
+      partesMeticais.push((strMilhares ? strMilhares + ' ' : '') + 'mil');
+    }
+    
+    if (resto > 0) {
+      let strResto = converteBloco(resto);
+      if (partesMeticais.length > 0) {
+         // Adiciona "e" se for menor que 100 ou se for centena exata (ex: mil e cem, mil e vinte)
+         if (resto < 100 || resto % 100 === 0) {
+            partesMeticais.push('e ' + strResto);
+         } else {
+            partesMeticais.push(strResto); // Ex: mil novecentos (sem o 'e')
+         }
+      } else {
+         partesMeticais.push(strResto);
+      }
+    } else if ((bilhoes > 0 || milhoes > 0) && milhares === 0 && resto === 0) {
+      partesMeticais.push('de'); // Ex: Um milhão de meticais
+    }
+    
+    let strExtenso = partesMeticais.join(' ').replace(/\s+/g, ' ').trim();
+    strExtenso += (meticais === 1 ? ' metical' : ' meticais');
+    resultado.push(strExtenso);
+  }
+  
+  if (centavos > 0) {
+    let strCentavos = converteBloco(centavos) + (centavos === 1 ? ' centavo' : ' centavos');
+    resultado.push(strCentavos);
+  }
+  
+  let finalStr = resultado.join(' e ');
+  // Retorna com a primeira letra maiúscula
+  return finalStr.charAt(0).toUpperCase() + finalStr.slice(1);
 }
 
 // Mostrar mensagem de sucesso temporária
